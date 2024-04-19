@@ -3,6 +3,14 @@ name: Prepare new release
 on:
   workflow_dispatch:
     inputs:
+      no-release:
+        description: "Don't release"
+        type: boolean
+        default: false
+      draft:
+        description: "Draft release"
+        type: boolean
+        default: false
       serverBump:
         description: 'Bump server version'
         required: true
@@ -21,6 +29,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-root
   cancel-in-progress: true
 
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   bump_version:
     runs-on: ubuntu-latest
@@ -32,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ORG_RELEASE_TOKEN }}
+          fetch-depth: 0 # required for github-action-get-previous-tag
 
       - name: Install Poetry
         run: pipx install poetry
@@ -73,17 +84,16 @@ jobs:
         with:
           name: release-apk-signed
 
-      - name: Create draft release
+      - name: Create and Publish release
+        id: create-publish-release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: ${{ contains(inputs.draft, 'true') }}
           tag_name: ${{ env.IMMICH_VERSION }}
           generate_release_notes: true
-          body_path: misc/release/notes.tmpl
+          body: |
+            immich ${{ env.IMMICH_VERSION }}
+
+            This is a release supporting older devices.
           files: |
-            docker/docker-compose.yml
-            docker/example.env
-            docker/hwaccel.ml.yml
-            docker/hwaccel.transcoding.yml
-            docker/prometheus.yml
             *.apk
